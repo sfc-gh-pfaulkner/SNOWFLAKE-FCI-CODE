@@ -7,8 +7,29 @@ on:
     types: [closed]
 
 jobs:
-  deploy-hr:
+  detect-changes:
     if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      hr: ${{ steps.changes.outputs.hr }}
+      brf: ${{ steps.changes.outputs.brf }}
+      general: ${{ steps.changes.outputs.general }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD")
+          echo "hr=$([[ "$CHANGED" == *domains/hr/* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "brf=$([[ "$CHANGED" == *domains/brf/* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "general=$([[ "$CHANGED" == *domains/general/* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  deploy-hr:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.hr == 'true'
     uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-clone.yml@main
     with:
       clone_type: UAT
@@ -24,7 +45,8 @@ jobs:
       SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
 
   deploy-brf:
-    if: github.event.pull_request.merged == true
+    needs: detect-changes
+    if: needs.detect-changes.outputs.brf == 'true'
     uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-clone.yml@main
     with:
       clone_type: UAT
@@ -40,7 +62,8 @@ jobs:
       SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
 
   deploy-general:
-    if: github.event.pull_request.merged == true
+    needs: detect-changes
+    if: needs.detect-changes.outputs.general == 'true'
     uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-clone.yml@main
     with:
       clone_type: UAT
