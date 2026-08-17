@@ -1,0 +1,46 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-hr:
+    uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-prod.yml@main
+    with:
+      domain: HR
+      db_name: CORE
+      dcm_target: PROD
+      role: PROD_HR_SYSADMIN
+      warehouse: HR_INGEST_WH
+    secrets:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.PROD_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.PROD_USER }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
+
+  deploy-brf:
+    uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-prod.yml@main
+    with:
+      domain: BRF
+      db_name: CORE
+      dcm_target: PROD
+      role: PROD_BRF_SYSADMIN
+      warehouse: BRF_INGEST_WH
+    secrets:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.PROD_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.PROD_USER }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
+
+  deploy-general:
+    uses: sfc-gh-pfaulkner/snowflake-rbac-framework/.github/workflows/deploy-to-prod.yml@main
+    with:
+      domain: GENERAL
+      db_name: CORE
+      dcm_target: PROD
+      role: PROD_GENERAL_SYSADMIN
+      warehouse: GENERAL_TRANSFORM_WH
+    secrets:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.PROD_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.PROD_USER }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
