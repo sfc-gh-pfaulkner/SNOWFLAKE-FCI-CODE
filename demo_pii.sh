@@ -143,8 +143,9 @@ step "Commit and push" \
   "git add -A && git commit -m 'feat(hr): apply PII tags to personal data columns (#${ISSUE_ID})' && git push -u origin ${BRANCH}"
 
 step "Create WIP clone" \
-  "Clone DEV_HR_CORE_DB to test the PII tags." \
-  "snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q \"CALL ADMIN_DB.DEPLOY.DEPLOY_CLONE('${ISSUE_ID}', 'DEV', 'HR', 'CORE', 'WIP');\""
+  "Create a zero-copy clone of DEV_HR_CORE_DB for development.
+  Clone name: WIP_${ISSUE_ID}_HR_CORE_DB" \
+  "snow sql -c DEVACC --role DEV_HR_SYSADMIN --warehouse HR_DEV_WH -q \"CALL ADMIN_DB.DEPLOY.DEPLOY_CLONE('${ISSUE_ID}', 'DEV', 'HR', 'CORE', 'WIP');\""
 
 step "Deploy DCM (creates tables/views)" \
   "DCM deploys the HR domain objects to the WIP clone." \
