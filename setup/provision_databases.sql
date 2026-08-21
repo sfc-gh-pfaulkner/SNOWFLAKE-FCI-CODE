@@ -120,13 +120,15 @@ grant usage on warehouse BRF_REPORTING_WH to role DEPLOYMENT_ADMIN;
 execute immediate $$
 begin
     if ((select $env) = 'DEV') then
+        call ADMIN_DB.DEPLOY.DEPLOY_WAREHOUSE('DEV', 'GENERAL', 'DEV', 'GEN1', 'XSMALL');
         call ADMIN_DB.DEPLOY.DEPLOY_WAREHOUSE('DEV', 'HR', 'DEV', 'GEN1', 'XSMALL');
         call ADMIN_DB.DEPLOY.DEPLOY_WAREHOUSE('DEV', 'BRF', 'DEV', 'GEN1', 'XSMALL');
+        grant usage on warehouse GENERAL_DEV_WH to role DEPLOYMENT_ADMIN;
         grant usage on warehouse HR_DEV_WH to role DEPLOYMENT_ADMIN;
         grant usage on warehouse BRF_DEV_WH to role DEPLOYMENT_ADMIN;
+        grant usage on warehouse GENERAL_DEV_WH to role DEV_GENERAL_DEVELOPER;
         grant usage on warehouse HR_DEV_WH to role DEV_HR_DEVELOPER;
         grant usage on warehouse BRF_DEV_WH to role DEV_BRF_DEVELOPER;
-        grant usage on warehouse GENERAL_TRANSFORM_WH to role DEV_GENERAL_DEVELOPER;
     end if;
 end;
 $$;
