@@ -8,13 +8,21 @@ set -euo pipefail
 #   GENERAL → HR → BRF
 # Each domain: WIP → TEST → UAT → PREPROD → PROD
 #
+# Features:
+#   - Auto-creates GitHub issues
+#   - Checkpoints progress to .demo_progress
+#   - On restart, offers to resume from last successful step
+#   - Pass --reset to start fresh
+#
 # Prerequisites:
 #   - Both Snowflake accounts deployed (full_reset.sh completed)
-#   - Developer roles granted to your user (DEV_GENERAL_DEVELOPER, etc.)
+#   - Developer roles granted to your user
 #   - Self-hosted GitHub Actions runner listening (~/actions-runner/run.sh)
 #   - GitHub secrets configured
 #   - Must be run from the FCI-CODE repo root directory
 # =============================================================================
+
+STATE_FILE=".demo_progress"
 
 # Colours
 BOLD='\033[1m'
@@ -25,9 +33,63 @@ RED='\033[0;31m'
 RESET='\033[0m'
 
 step_num=0
+resume_from=0
 
+# --- State management ---
+save_state() {
+  echo "STEP=${step_num}" > "$STATE_FILE"
+  echo "GENERAL_ISSUE=${GENERAL_ISSUE:-}" >> "$STATE_FILE"
+  echo "HR_ISSUE=${HR_ISSUE:-}" >> "$STATE_FILE"
+  echo "BRF_ISSUE=${BRF_ISSUE:-}" >> "$STATE_FILE"
+}
+
+load_state() {
+  if [[ -f "$STATE_FILE" ]]; then
+    source "$STATE_FILE"
+    resume_from=${STEP:-0}
+  fi
+}
+
+clear_state() {
+  rm -f "$STATE_FILE"
+}
+
+# --- Handle --reset flag ---
+if [[ "${1:-}" == "--reset" ]]; then
+  clear_state
+  echo "  State cleared. Starting fresh."
+  echo ""
+fi
+
+# --- Check for resume ---
+load_state
+if [[ $resume_from -gt 0 ]]; then
+  echo ""
+  echo -e "${YELLOW}  Previous run found — completed ${resume_from} steps.${RESET}"
+  if [[ -n "${GENERAL_ISSUE:-}" ]]; then echo "    GENERAL issue: #${GENERAL_ISSUE}"; fi
+  if [[ -n "${HR_ISSUE:-}" ]]; then echo "    HR issue: #${HR_ISSUE}"; fi
+  if [[ -n "${BRF_ISSUE:-}" ]]; then echo "    BRF issue: #${BRF_ISSUE}"; fi
+  echo ""
+  read -rp "  Resume from step $((resume_from + 1))? [Y/n] " choice
+  if [[ "${choice,,}" == "n" ]]; then
+    clear_state
+    resume_from=0
+    GENERAL_ISSUE=""
+    HR_ISSUE=""
+    BRF_ISSUE=""
+  fi
+  echo ""
+fi
+
+# --- Core functions ---
 step() {
   step_num=$((step_num + 1))
+
+  # Skip already-completed steps
+  if [[ $step_num -le $resume_from ]]; then
+    return 0
+  fi
+
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo -e "${CYAN}Step ${step_num}: $1${RESET}"
@@ -40,9 +102,14 @@ step() {
   read -rp "Press RETURN to execute..."
   echo ""
   eval "$3"
+  save_state
 }
 
 section() {
+  # Skip section headers if we're still catching up
+  if [[ $step_num -lt $resume_from ]]; then
+    return 0
+  fi
   echo ""
   echo ""
   echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
@@ -51,6 +118,10 @@ section() {
 }
 
 pause_gate() {
+  # Skip if catching up
+  if [[ $step_num -le $resume_from ]]; then
+    return 0
+  fi
   echo ""
   echo -e "${YELLOW}══════════════════════════════════════════════════════════════════════════${RESET}"
   echo -e "${YELLOW}  $1${RESET}"
@@ -60,6 +131,10 @@ pause_gate() {
 }
 
 wait_for_workflow() {
+  # Skip if catching up
+  if [[ $step_num -le $resume_from ]]; then
+    return 0
+  fi
   local max_wait=300
   local interval=10
   local elapsed=0
@@ -255,7 +330,7 @@ deploy_domain() {
 
   step "Delete feature branch" \
     "Clean up the ${DOMAIN} feature branch." \
-    "git checkout main && git branch -D ${BRANCH} && git push origin --delete ${BRANCH} 2>/dev/null || true"
+    "git checkout main && git pull && git branch -D ${BRANCH} && git push origin --delete ${BRANCH} 2>/dev/null || true"
 
   echo ""
   echo -e "${GREEN}  ${DOMAIN} domain complete: WIP → TEST → UAT → PREPROD → PROD${RESET}"
@@ -285,38 +360,55 @@ echo "  - Both accounts deployed (full_reset.sh)"
 echo "  - Self-hosted runner listening (~/actions-runner/run.sh)"
 echo "  - GitHub secrets configured"
 echo ""
+echo -e "${YELLOW}Usage:${RESET}  ./demo.sh          (run or resume)"
+echo "        ./demo.sh --reset  (start fresh)"
+echo ""
 
 # --- GENERAL ---
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${CYAN}Domain 1 of 3: GENERAL${RESET}"
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo ""
-echo "  Create a GitHub issue for the GENERAL domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy GENERAL domain code\" --body \"Reference data: dates, countries, currencies\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the GENERAL issue number: " GENERAL_ISSUE
-echo ""
+# Create issue if we don't already have one from a previous run
+if [[ -z "${GENERAL_ISSUE:-}" ]]; then
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${CYAN}Domain 1 of 3: GENERAL${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  echo "  Next: Create a GitHub issue for the GENERAL domain."
+  read -rp "  Press RETURN to create issue..."
+  echo ""
+  GENERAL_ISSUE=$(gh issue create --title "Deploy GENERAL domain code" --body "Reference data: dates, countries, currencies" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+  echo -e "  ${GREEN}Issue #${GENERAL_ISSUE} created${RESET}"
+  echo ""
+  gh issue list
+  echo ""
+  save_state
+  read -rp "  Press RETURN to continue..."
+  echo ""
+fi
 
-# Dynamic table refresh commands (use __DB__ as placeholder)
 GENERAL_DT="ALTER DYNAMIC TABLE __DB__.DM.D_DATE REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_COUNTRY REFRESH;"
 GENERAL_VERIFY="SELECT * FROM __DB__.RPT.VW_COUNTRY_DIRECTORY; SELECT * FROM __DB__.RPT.VW_CURRENCY_RATES_SUMMARY LIMIT 10;"
 
-deploy_domain "GENERAL" "general" "GENERAL_TRANSFORM_WH" "GENERAL_REPORTING_WH" \
+deploy_domain "GENERAL" "general" "GENERAL_DEV_WH" "GENERAL_REPORTING_WH" \
   "test/seed_general.sql" "$GENERAL_DT" "$GENERAL_VERIFY" "$GENERAL_ISSUE"
 
 # --- HR ---
-echo ""
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${CYAN}Domain 2 of 3: HR${RESET}"
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo ""
-echo "  Create a GitHub issue for the HR domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy HR domain code\" --body \"Employees, departments, jobs, SCD2 history\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the HR issue number: " HR_ISSUE
-echo ""
+if [[ -z "${HR_ISSUE:-}" ]]; then
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${CYAN}Domain 2 of 3: HR${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  echo "  Next: Create a GitHub issue for the HR domain."
+  read -rp "  Press RETURN to create issue..."
+  echo ""
+  HR_ISSUE=$(gh issue create --title "Deploy HR domain code" --body "Employees, departments, jobs, SCD2 history" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+  echo -e "  ${GREEN}Issue #${HR_ISSUE} created${RESET}"
+  echo ""
+  gh issue list
+  echo ""
+  save_state
+  read -rp "  Press RETURN to continue..."
+  echo ""
+fi
 
 HR_DT="ALTER DYNAMIC TABLE __DB__.DM.D_EMPLOYEE_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_DEPARTMENT_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_JOB_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_JOB_HISTORY REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_COMP_HISTORY REFRESH;"
 HR_VERIFY="SELECT * FROM __DB__.RPT.VW_HEADCOUNT_BY_DEPARTMENT; SELECT EMPLOYEE_ID, FIRST_NAME, LAST_NAME, IS_CURRENT FROM __DB__.STG.V_EMPLOYEES_HISTORY WHERE EMPLOYEE_ID = 'EMP-001';"
@@ -325,17 +417,24 @@ deploy_domain "HR" "hr" "HR_DEV_WH" "HR_REPORTING_WH" \
   "test/seed_hr.sql" "$HR_DT" "$HR_VERIFY" "$HR_ISSUE"
 
 # --- BRF ---
-echo ""
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo -e "${CYAN}Domain 3 of 3: BRF${RESET}"
-echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-echo ""
-echo "  Create a GitHub issue for the BRF domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy BRF domain code\" --body \"Budgets, cost centers, GL accounts, variance analysis\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the BRF issue number: " BRF_ISSUE
-echo ""
+if [[ -z "${BRF_ISSUE:-}" ]]; then
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${CYAN}Domain 3 of 3: BRF${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  echo "  Next: Create a GitHub issue for the BRF domain."
+  read -rp "  Press RETURN to create issue..."
+  echo ""
+  BRF_ISSUE=$(gh issue create --title "Deploy BRF domain code" --body "Budgets, cost centers, GL accounts, variance analysis" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+  echo -e "  ${GREEN}Issue #${BRF_ISSUE} created${RESET}"
+  echo ""
+  gh issue list
+  echo ""
+  save_state
+  read -rp "  Press RETURN to continue..."
+  echo ""
+fi
 
 BRF_DT="ALTER DYNAMIC TABLE __DB__.DM.D_COST_CENTER REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_BUDGET_VARIANCE REFRESH;"
 BRF_VERIFY="SELECT * FROM __DB__.RPT.VW_BUDGET_VARIANCE_BY_DIVISION; SELECT * FROM __DB__.RPT.VW_COST_CENTER_SUMMARY;"
@@ -353,3 +452,4 @@ echo -e "${GREEN}    HR:      WIP → TEST → UAT → PREPROD → PROD${RESET}"
 echo -e "${GREEN}    BRF:     WIP → TEST → UAT → PREPROD → PROD${RESET}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
+clear_state
