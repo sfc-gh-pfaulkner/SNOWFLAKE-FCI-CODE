@@ -138,21 +138,26 @@ wait_for_workflow() {
   local max_wait=300
   local interval=10
   local elapsed=0
-  echo "  Waiting for GitHub Actions workflow to complete..."
+  # Wait a moment for GH to register the new run
+  sleep 5
+  # Get the ID of the most recent run (should be the one just triggered)
+  local run_id
+  run_id=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+  echo "  Waiting for workflow run ${run_id} to complete..."
   while [[ $elapsed -lt $max_wait ]]; do
     sleep $interval
     elapsed=$((elapsed + interval))
     local status
-    status=$(gh run list --limit 1 --json conclusion,status --jq '.[0].status')
+    status=$(gh run view "$run_id" --json status,conclusion --jq '.status')
     if [[ "$status" == "completed" ]]; then
       local conclusion
-      conclusion=$(gh run list --limit 1 --json conclusion --jq '.[0].conclusion')
+      conclusion=$(gh run view "$run_id" --json conclusion --jq '.conclusion')
       if [[ "$conclusion" == "success" ]]; then
         echo -e "  ${GREEN}Workflow completed successfully (${elapsed}s)${RESET}"
         return 0
       else
         echo -e "  ${RED}Workflow FAILED (conclusion: ${conclusion})${RESET}"
-        echo "  Check logs: gh run view --log-failed"
+        echo "  Check logs: gh run view ${run_id} --log-failed"
         read -rp "  Press RETURN to continue anyway, or Ctrl+C to abort..."
         return 0
       fi
@@ -160,7 +165,7 @@ wait_for_workflow() {
     echo "  ... still running (${elapsed}s elapsed)"
   done
   echo -e "  ${RED}Workflow did not complete within ${max_wait}s${RESET}"
-  echo "  Check status: gh run list --limit 1"
+  echo "  Check status: gh run view ${run_id}"
   read -rp "  Press RETURN to continue anyway, or Ctrl+C to abort..."
 }
 
@@ -240,7 +245,7 @@ deploy_domain() {
   step "Merge PR (triggers CI/CD)" \
     "Merging triggers the 'Deploy to TEST' workflow.
   Watch ~/actions-runner terminal for progress." \
-    "gh pr merge --merge --admin"
+    "gh pr merge --merge --admin --delete-branch=false \$(gh pr list --base test/main --head ${BRANCH} --json number --jq '.[0].number')"
 
   echo ""
   wait_for_workflow
@@ -260,7 +265,7 @@ deploy_domain() {
 
   step "Merge PR (triggers CI/CD on PROD)" \
     "Creates ${UAT_DB} on the PROD account." \
-    "gh pr merge --merge --admin"
+    "gh pr merge --merge --admin --delete-branch=false \$(gh pr list --base uat/main --head test/main --json number --jq '.[0].number')"
 
   echo ""
   wait_for_workflow
@@ -280,7 +285,7 @@ deploy_domain() {
 
   step "Merge PR (triggers CI/CD)" \
     "Creates ${PREPROD_DB} on PROD account." \
-    "gh pr merge --merge --admin"
+    "gh pr merge --merge --admin --delete-branch=false \$(gh pr list --base preprod/main --head uat/main --json number --jq '.[0].number')"
 
   echo ""
   wait_for_workflow
@@ -300,7 +305,7 @@ deploy_domain() {
 
   step "Merge PR (deploys to PROD)" \
     "DCM deploys to the base production database." \
-    "gh pr merge --merge --admin"
+    "gh pr merge --merge --admin --delete-branch=false \$(gh pr list --base prod/main --head preprod/main --json number --jq '.[0].number')"
 
   echo ""
   wait_for_workflow
