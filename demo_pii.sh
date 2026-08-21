@@ -5,14 +5,11 @@ set -euo pipefail
 # FCI RBAC Framework — PII Governance Demo
 # =============================================================================
 # Demonstrates tag-based masking on the HR domain.
-# Prerequisite: HR domain already deployed to PROD (run demo.sh first).
-#
-# This script:
-#   1. Creates a WIP clone of DEV_HR_CORE_DB
-#   2. Copies PII tagging definitions into the HR DCM folder
-#   3. Deploys (applies PII tags to columns)
-#   4. Shows data masked/unmasked depending on role
+# Supports resume: saves progress to .demo_pii_progress
+# Use --reset to start fresh.
 # =============================================================================
+
+STATE_FILE=".demo_pii_progress"
 
 BOLD='\033[1m'
 CYAN='\033[0;36m'
@@ -22,9 +19,45 @@ RED='\033[0;31m'
 RESET='\033[0m'
 
 step_num=0
+resume_from=0
+
+save_state() {
+  echo "STEP=${step_num}" > "$STATE_FILE"
+  echo "ISSUE_ID=${ISSUE_ID:-}" >> "$STATE_FILE"
+}
+
+load_state() {
+  if [[ -f "$STATE_FILE" ]]; then
+    source "$STATE_FILE"
+    resume_from=${STEP:-0}
+  fi
+}
+
+clear_state() { rm -f "$STATE_FILE"; }
+
+if [[ "${1:-}" == "--reset" ]]; then
+  clear_state
+  echo "  State cleared. Starting fresh."
+fi
+
+load_state
+if [[ $resume_from -gt 0 ]]; then
+  echo ""
+  echo -e "${YELLOW}  Previous run found — completed ${resume_from} steps.${RESET}"
+  if [[ -n "${ISSUE_ID:-}" ]]; then echo "    Issue: #${ISSUE_ID}"; fi
+  echo ""
+  read -rp "  Resume from step $((resume_from + 1))? [Y/n] " choice
+  if [[ "$choice" == "n" || "$choice" == "N" ]]; then
+    clear_state
+    resume_from=0
+    ISSUE_ID=""
+  fi
+  echo ""
+fi
 
 step() {
   step_num=$((step_num + 1))
+  if [[ $step_num -le $resume_from ]]; then return 0; fi
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo -e "${CYAN}Step ${step_num}: $1${RESET}"
@@ -37,9 +70,11 @@ step() {
   read -rp "Press RETURN to execute..."
   echo ""
   eval "$3"
+  save_state
 }
 
 section() {
+  if [[ $step_num -lt $resume_from ]]; then return 0; fi
   echo ""
   echo ""
   echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
@@ -48,6 +83,7 @@ section() {
 }
 
 pause_gate() {
+  if [[ $step_num -le $resume_from ]]; then return 0; fi
   echo ""
   echo -e "${YELLOW}══════════════════════════════════════════════════════════════════════════${RESET}"
   echo -e "${YELLOW}  $1${RESET}"
@@ -75,12 +111,15 @@ echo "  - functional_roles redeployed with PII roles"
 echo "  - DEV_HR_DEVELOPER role granted to your user"
 echo ""
 
-# Create issue
-echo "  Creating GitHub issue for PII update..."
-ISSUE_ID=$(gh issue create --title "Apply PII tags to HR data" --body "Tag personal data columns for automatic masking" --assignee @me 2>&1 | grep -oE '[0-9]+$')
-echo -e "  ${GREEN}Issue #${ISSUE_ID} created${RESET}"
-echo ""
-read -rp "  Press RETURN to continue..."
+# Create issue if we don't already have one
+if [[ -z "${ISSUE_ID:-}" ]]; then
+  echo "  Creating GitHub issue for PII update..."
+  ISSUE_ID=$(gh issue create --title "Apply PII tags to HR data" --body "Tag personal data columns for automatic masking" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+  echo -e "  ${GREEN}Issue #${ISSUE_ID} created${RESET}"
+  echo ""
+  save_state
+  read -rp "  Press RETURN to continue..."
+fi
 
 BRANCH="feature/${ISSUE_ID}-hr-pii-tags"
 WIP_DB="WIP_${ISSUE_ID}_HR_CORE_DB"
@@ -182,9 +221,10 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}  PII Governance Demo Complete!${RESET}"
 echo -e "${GREEN}${RESET}"
 echo -e "${GREEN}  Key takeaways:${RESET}"
-echo -e "${GREEN}    - Tags applied via DCM (ALTER TABLE SET TAG in definitions)${RESET}"
+echo -e "${GREEN}    - Tags applied as post-deploy scripts (domains/<name>/post_deploy/)${RESET}"
 echo -e "${GREEN}    - Masking is automatic — no per-column policy attachment needed${RESET}"
 echo -e "${GREEN}    - Access controlled by PII_<DOMAIN>_FULL/PARTIAL_ACCESS roles${RESET}"
-echo -e "${GREEN}    - Same tags deploy to TEST/UAT/PROD via normal CI/CD pipeline${RESET}"
+echo -e "${GREEN}    - CI/CD runs post_deploy/*.sql automatically after DCM${RESET}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
+clear_state
