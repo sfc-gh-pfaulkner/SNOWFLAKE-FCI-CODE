@@ -35,8 +35,8 @@ snow sql -f setup/provision_databases.sql -c PRODACC --role DEPLOYMENT_ADMIN --w
 
 The DCM project is created automatically by the RBAC framework. Just deploy:
 ```bash
-snow dcm deploy --from functional_roles -c DEVACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
-snow dcm deploy --from functional_roles -c PRODACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
+snow dcm deploy --from functional_roles --target DEV -c DEVACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
+snow dcm deploy --from functional_roles --target PROD -c PRODACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
 ```
 
 ### 3. Grant DEVELOPER role to your user (skip if managed by Okta/SCIM)
@@ -56,59 +56,84 @@ Setup is complete. Domain code is deployed through the development workflow belo
 ### 1. Create a GitHub issue and feature branch
 
 ```bash
-gh issue create --title "Initial HR domain deployment" --body ""
+gh issue create --title "Deploy HR domain code" --body "Initial HR deployment" --assignee @me
+# Note the issue number (e.g. 5)
 git checkout main && git pull
-git checkout -b feature/1-initial-hr-deployment
+git checkout -b feature/5-deploy-hr
 ```
 
 ### 2. Create a WIP clone
 
 ```bash
-snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q "call ADMIN_DB.DEPLOY.DEPLOY_CLONE('1', 'DEV', 'HR', 'CORE', 'WIP');"
+snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH \
+  -q "call ADMIN_DB.DEPLOY.DEPLOY_CLONE('5', 'DEV', 'HR', 'CORE', 'WIP');"
 ```
 
-Creates `WIP_1_HR_CORE_DB` (your workspace) and `SAFE_1_HR_CORE_DB` (rollback snapshot).
+Creates `WIP_5_HR_CORE_DB` (your workspace) and `SAFE_5_HR_CORE_DB` (rollback snapshot).
 
 ### 3. Develop and deploy to your clone
 
-Add/edit DCM definitions in `domains/hr/dcm/sources/definitions/`, then deploy to the WIP clone:
+Add/edit DCM definitions in `domains/hr/dcm/sources/definitions/`, then deploy:
 
 ```bash
-snow dcm deploy --from domains/hr/dcm --target WIP -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH
+snow dcm deploy WIP_5_HR_CORE_DB.DCM.HR_CORE_PROJECT \
+  --from domains/hr/dcm \
+  --target DEV \
+  --variable "db='WIP_5_HR_CORE_DB'" \
+  -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH
 ```
 
-Note: you'll need a `WIP` target in your domain manifest pointing at the clone database. See the Warehouses section for template variable conventions.
+Load test data (if applicable):
+```bash
+snow sql -f test/seed_hr.sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH \
+  -D "db=WIP_5_HR_CORE_DB" --enable-templating JINJA
+```
 
-### 4. Push and create a PR
+Note: `--variable` uses inner quotes (`db='VALUE'`), but `-D` does not (`db=VALUE`).
+
+### 4. Push and create a PR to test/main
 
 ```bash
-git add . && git commit -m "Initial HR domain deployment"
-git push -u origin feature/1-initial-hr-deployment
-gh pr create --title "Initial HR domain deployment" --body ""
+git add -A && git commit -m "feat(hr): initial HR domain code (#5)"
+git push -u origin feature/5-deploy-hr
+gh pr create --base test/main --head feature/5-deploy-hr \
+  --title "Deploy HR to TEST (#5)" --body "Issue #5"
 ```
-
-Merging to `test/*` triggers automated TEST clone deployment.
 
 ### 5. Promote through environments
 
-Code moves through environments via PRs to specific branches. CI/CD handles clone creation and deployment automatically at each stage.
+Code moves through environments via PRs to promotion branches. CI/CD handles clone creation, DCM deployment, and test data seeding automatically.
 
 | Step | Action | What CI does |
 |------|--------|--------------|
-| TEST | Merge PR to `test/hr` | Creates TEST clone of DEV_HR_CORE_DB, deploys DCM into it |
-| UAT | Merge PR from `test/hr` to `uat/hr` | Creates UAT clone of PROD_HR_CORE_DB in PRODACC, deploys DCM |
-| PREPROD | Merge PR from `uat/hr` to `preprod/hr` | Creates PREPROD clone in PRODACC, also deploys to DEV base |
-| PROD | Merge PR from `preprod/hr` to `main` | Deploys to PROD_HR_CORE_DB, drops UAT/PREPROD clones |
+| TEST | Merge PR to `test/main` | Creates TEST clone of DEV_HR_CORE_DB, deploys DCM, seeds data |
+| UAT | PR from `test/main` to `uat/main`, merge | Creates UAT clone of PROD_HR_CORE_DB on PROD account |
+| PREPROD | PR from `uat/main` to `preprod/main`, merge | Creates PREPROD clone on PROD account |
+| PROD | PR from `preprod/main` to `prod/main`, merge | Deploys directly to PROD_HR_CORE_DB (no clone) |
 
-Each promotion is a PR — reviewers approve before merging triggers the next stage.
+Each promotion is a PR merge. The CI/CD workflow uses change detection — only domains with modified files are deployed.
 
 ### 6. Clean up
 
-After production deployment, drop your WIP and SAFE clones:
+After production deployment, drop clones:
 
 ```bash
-snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q "call ADMIN_DB.DEPLOY.DROP_CLONE('1', 'DEV', 'HR', 'CORE', 'WIP');"
-snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q "call ADMIN_DB.DEPLOY.DROP_CLONE('1', 'DEV', 'HR', 'CORE', 'SAFE');"
+# DEV account
+snow sql -c DEVACC --role DEV_HR_SYSADMIN --warehouse HR_DEV_WH \
+  -q "call ADMIN_DB.DEPLOY.DROP_CLONE('5', 'DEV', 'HR', 'CORE', 'WIP');"
+snow sql -c DEVACC --role DEV_HR_SYSADMIN --warehouse HR_DEV_WH \
+  -q "call ADMIN_DB.DEPLOY.DROP_CLONE('5', 'DEV', 'HR', 'CORE', 'TEST');"
+# PROD account
+snow sql -c PRODACC --role PROD_HR_SYSADMIN --warehouse HR_REPORTING_WH \
+  -q "call ADMIN_DB.DEPLOY.DROP_CLONE('5', 'PROD', 'HR', 'CORE', 'UAT');"
+snow sql -c PRODACC --role PROD_HR_SYSADMIN --warehouse HR_REPORTING_WH \
+  -q "call ADMIN_DB.DEPLOY.DROP_CLONE('5', 'PROD', 'HR', 'CORE', 'PREPROD');"
+```
+
+Delete the feature branch:
+```bash
+git checkout main && git branch -D feature/5-deploy-hr
+git push origin --delete feature/5-deploy-hr
 ```
 
 ---
@@ -177,13 +202,16 @@ This repo contains **trigger workflows** that define *when* to deploy and *which
 
 | This repo (trigger) | Calls (template) | When |
 |---------------------|------------------|------|
-| `test.yml` | `deploy-to-clone.yml` | PR merged to `test/*` — creates TEST clone per domain |
-| `uat.yml` | `deploy-to-clone.yml` | PR merged to `uat/*` — creates UAT clone in PRODACC |
-| `prod.yml` | `deploy-to-prod.yml` | Push to `main` — deploys to PROD, cleans up clones |
+| `test.yml` | `deploy-to-clone.yml` | PR merged to `test/main` — creates TEST clone in DEV |
+| `uat.yml` | `deploy-to-clone.yml` | PR merged to `uat/main` — creates UAT clone in PROD |
+| `preprod.yml` | `deploy-to-clone.yml` | PR merged to `preprod/main` — creates PREPROD clone in PROD |
+| `prod.yml` | `deploy-to-prod.yml` | PR merged to `prod/main` — deploys directly to PROD databases |
 
-Each workflow runs `snow dcm plan` before deploying, so the PR check shows what would change. If `snow dcm test` expectations are defined, they run after deployment and fail the workflow on violations.
+Each workflow runs change detection first — only domains with modified files are deployed. Seed data (`test/seed_<domain>.sql`) is loaded automatically into clones if the file exists.
 
-To add a new domain to CI/CD, add a job block to each workflow file.
+A self-hosted GitHub Actions runner is required (org network policy blocks hosted runners). Start with: `~/actions-runner/run.sh`
+
+To add a new domain to CI/CD, add a job block to each workflow file (test.yml, uat.yml, preprod.yml, prod.yml).
 
 ---
 
