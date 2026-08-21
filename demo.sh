@@ -298,11 +298,9 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 1 of 3: GENERAL${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Create a GitHub issue for the GENERAL domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy GENERAL domain code\" --body \"Reference data: dates, countries, currencies\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the GENERAL issue number: " GENERAL_ISSUE
+echo "  Creating GitHub issue for GENERAL domain..."
+GENERAL_ISSUE=$(gh issue create --title "Deploy GENERAL domain code" --body "Reference data: dates, countries, currencies" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+echo -e "  ${GREEN}Issue #${GENERAL_ISSUE} created${RESET}"
 echo ""
 
 # Dynamic table refresh commands (use __DB__ as placeholder)
@@ -318,11 +316,9 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 2 of 3: HR${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Create a GitHub issue for the HR domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy HR domain code\" --body \"Employees, departments, jobs, SCD2 history\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the HR issue number: " HR_ISSUE
+echo "  Creating GitHub issue for HR domain..."
+HR_ISSUE=$(gh issue create --title "Deploy HR domain code" --body "Employees, departments, jobs, SCD2 history" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+echo -e "  ${GREEN}Issue #${HR_ISSUE} created${RESET}"
 echo ""
 
 HR_DT="ALTER DYNAMIC TABLE __DB__.DM.D_EMPLOYEE_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_DEPARTMENT_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_JOB_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_JOB_HISTORY REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_COMP_HISTORY REFRESH;"
@@ -337,11 +333,9 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 3 of 3: BRF${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Create a GitHub issue for the BRF domain deployment:"
-echo ""
-echo -e "  ${GREEN}gh issue create --title \"Deploy BRF domain code\" --body \"Budgets, cost centers, GL accounts, variance analysis\" --assignee @me${RESET}"
-echo ""
-read -rp "Enter the BRF issue number: " BRF_ISSUE
+echo "  Creating GitHub issue for BRF domain..."
+BRF_ISSUE=$(gh issue create --title "Deploy BRF domain code" --body "Budgets, cost centers, GL accounts, variance analysis" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+echo -e "  ${GREEN}Issue #${BRF_ISSUE} created${RESET}"
 echo ""
 
 BRF_DT="ALTER DYNAMIC TABLE __DB__.DM.D_COST_CENTER REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_BUDGET_VARIANCE REFRESH;"
