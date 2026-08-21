@@ -1,0 +1,187 @@
+#!/bin/bash
+set -euo pipefail
+
+# =============================================================================
+# FCI RBAC Framework — PII Governance Demo
+# =============================================================================
+# Demonstrates tag-based masking on the HR domain.
+# Prerequisite: HR domain already deployed to PROD (run demo.sh first).
+#
+# This script:
+#   1. Creates a WIP clone of DEV_HR_CORE_DB
+#   2. Copies PII tagging definitions into the HR DCM folder
+#   3. Deploys (applies PII tags to columns)
+#   4. Shows data masked/unmasked depending on role
+# =============================================================================
+
+BOLD='\033[1m'
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+RESET='\033[0m'
+
+step_num=0
+
+step() {
+  step_num=$((step_num + 1))
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${CYAN}Step ${step_num}: $1${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  echo -e "${YELLOW}$2${RESET}"
+  echo ""
+  echo -e "  ${GREEN}\$ $3${RESET}"
+  echo ""
+  read -rp "Press RETURN to execute..."
+  echo ""
+  eval "$3"
+}
+
+section() {
+  echo ""
+  echo ""
+  echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
+  echo -e "${BOLD}║  $1${RESET}"
+  echo -e "${BOLD}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
+}
+
+pause_gate() {
+  echo ""
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════════════════${RESET}"
+  echo -e "${YELLOW}  $1${RESET}"
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════════════════${RESET}"
+  echo ""
+  read -rp "Press RETURN when ready to continue..."
+}
+
+# =============================================================================
+clear
+
+echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
+echo -e "${BOLD}║                                                                          ║${RESET}"
+echo -e "${BOLD}║   FCI RBAC Framework — PII Governance Demo                               ║${RESET}"
+echo -e "${BOLD}║                                                                          ║${RESET}"
+echo -e "${BOLD}║   Shows tag-based dynamic masking on HR personal data.                   ║${RESET}"
+echo -e "${BOLD}║   Columns are tagged with PII classification; masking policies           ║${RESET}"
+echo -e "${BOLD}║   automatically mask data unless the user holds a PII access role.       ║${RESET}"
+echo -e "${BOLD}║                                                                          ║${RESET}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
+echo ""
+echo -e "${YELLOW}Prerequisites:${RESET}"
+echo "  - HR domain deployed (run demo.sh first for the HR domain)"
+echo "  - functional_roles redeployed with PII roles"
+echo "  - DEV_HR_DEVELOPER role granted to your user"
+echo ""
+
+# Create issue
+echo "  Creating GitHub issue for PII update..."
+ISSUE_ID=$(gh issue create --title "Apply PII tags to HR data" --body "Tag personal data columns for automatic masking" --assignee @me 2>&1 | grep -oE '[0-9]+$')
+echo -e "  ${GREEN}Issue #${ISSUE_ID} created${RESET}"
+echo ""
+read -rp "  Press RETURN to continue..."
+
+BRANCH="feature/${ISSUE_ID}-hr-pii-tags"
+WIP_DB="WIP_${ISSUE_ID}_HR_CORE_DB"
+
+# =============================================================================
+section "Part 1: Apply PII Tags"
+# =============================================================================
+
+step "Create feature branch" \
+  "Branch off main for the PII tagging work." \
+  "git checkout main && git pull && git checkout -b ${BRANCH}"
+
+step "Copy PII tag definitions" \
+  "Add the PII tagging SQL to the HR domain DCM folder.
+  This file contains ALTER TABLE SET TAG statements that classify
+  columns containing personal data." \
+  "cp test/hr_update_01/pii_tags.sql domains/hr/dcm/sources/definitions/"
+
+step "Commit and push" \
+  "Commit the PII tagging update." \
+  "git add -A && git commit -m 'feat(hr): apply PII tags to personal data columns (#${ISSUE_ID})' && git push -u origin ${BRANCH}"
+
+step "Create WIP clone" \
+  "Clone DEV_HR_CORE_DB to test the PII tags." \
+  "snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q \"CALL ADMIN_DB.DEPLOY.DEPLOY_CLONE('${ISSUE_ID}', 'DEV', 'HR', 'CORE', 'WIP');\""
+
+step "Deploy DCM (applies tags)" \
+  "DCM deploys all definitions including the new pii_tags.sql.
+  The ALTER TABLE SET TAG statements tag each PII column with
+  its category and classification level." \
+  "snow dcm deploy ${WIP_DB}.DCM.HR_CORE_PROJECT --from domains/hr/dcm --target DEV --variable \"db='${WIP_DB}'\" -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH"
+
+step "Load test data" \
+  "Insert employee data so we can see the masking in action." \
+  "snow sql -f test/seed_hr.sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -D \"db=${WIP_DB}\" --enable-templating JINJA"
+
+pause_gate "PII tags applied and data loaded. Now let's see the masking in action..."
+
+# =============================================================================
+section "Part 2: Verify Masking Behaviour"
+# =============================================================================
+
+step "Query as DEVELOPER (owner — sees all)" \
+  "The DEVELOPER role owns the objects. Object owners bypass masking
+  policies, so all data is visible unmasked." \
+  "snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q \"select EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, DATE_OF_BIRTH, GENDER from ${WIP_DB}.RAW.EMPLOYEES_RAW limit 5;\""
+
+step "Query as ANALYST (no PII role — fully masked)" \
+  "The ANALYST role has read access via future grants but does NOT
+  hold any PII access role. All PII columns are masked." \
+  "snow sql -c DEVACC --role DEV_HR_ANALYST --warehouse HR_REPORTING_WH -q \"select EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, DATE_OF_BIRTH, GENDER from ${WIP_DB}.RAW.EMPLOYEES_RAW limit 5;\""
+
+step "Query as MANAGER (partial access — partially masked)" \
+  "The MANAGER role holds PII_HR_PARTIAL_ACCESS. CONFIDENTIAL columns
+  show first letter + asterisks. SENSITIVE columns are null." \
+  "snow sql -c DEVACC --role DEV_HR_MANAGER --warehouse HR_REPORTING_WH -q \"select EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, DATE_OF_BIRTH, GENDER from ${WIP_DB}.RAW.EMPLOYEES_RAW limit 5;\""
+
+step "Query as DATASTEWARD (full access — sees everything)" \
+  "The DATASTEWARD role holds PII_HR_FULL_ACCESS. All PII data
+  is visible unmasked — they need it for data quality work." \
+  "snow sql -c DEVACC --role DEV_HR_DATASTEWARD --warehouse HR_REPORTING_WH -q \"select EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, DATE_OF_BIRTH, GENDER from ${WIP_DB}.RAW.EMPLOYEES_RAW limit 5;\""
+
+step "Check compensation masking (ANALYST)" \
+  "Salary and bonus data is also tagged as SENSITIVE/FINANCIAL_PROFILE.
+  ANALYST sees null for these columns." \
+  "snow sql -c DEVACC --role DEV_HR_ANALYST --warehouse HR_REPORTING_WH -q \"select EMPLOYEE_ID, SALARY_AMOUNT, BONUS_TARGET_PCT, CURRENCY_CODE from ${WIP_DB}.RAW.COMPENSATION_EVENTS_RAW limit 5;\""
+
+pause_gate "Masking verified across all role levels."
+
+# =============================================================================
+section "Part 3: Verify Tag Metadata"
+# =============================================================================
+
+step "Show tagged columns" \
+  "Query the tag references to see which columns are classified." \
+  "snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q \"select TAG_NAME, TAG_VALUE, COLUMN_NAME, OBJECT_NAME from table(${WIP_DB}.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS('${WIP_DB}.RAW.EMPLOYEES_RAW', 'table')) order by COLUMN_NAME, TAG_NAME;\""
+
+# =============================================================================
+section "Part 4: Cleanup"
+# =============================================================================
+
+step "Drop WIP clone" \
+  "Remove the WIP sandbox." \
+  "snow sql -c DEVACC --role DEV_HR_SYSADMIN --warehouse HR_DEV_WH -q \"CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', 'HR', 'CORE', 'WIP');\""
+
+step "Delete feature branch" \
+  "Clean up." \
+  "git checkout main && git branch -D ${BRANCH} && git push origin --delete ${BRANCH} 2>/dev/null || true"
+
+step "Close issue" \
+  "Mark the PII work as done." \
+  "gh issue close ${ISSUE_ID}"
+
+echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${GREEN}  PII Governance Demo Complete!${RESET}"
+echo -e "${GREEN}${RESET}"
+echo -e "${GREEN}  Key takeaways:${RESET}"
+echo -e "${GREEN}    - Tags applied via DCM (ALTER TABLE SET TAG in definitions)${RESET}"
+echo -e "${GREEN}    - Masking is automatic — no per-column policy attachment needed${RESET}"
+echo -e "${GREEN}    - Access controlled by PII_<DOMAIN>_FULL/PARTIAL_ACCESS roles${RESET}"
+echo -e "${GREEN}    - Same tags deploy to TEST/UAT/PROD via normal CI/CD pipeline${RESET}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo ""

@@ -6,6 +6,10 @@ on:
       - 'prod/**'
     types: [closed]
 
+permissions:
+  issues: write
+  contents: read
+
 jobs:
   detect-changes:
     if: github.event.pull_request.merged == true
@@ -110,7 +114,7 @@ jobs:
                 --authenticator SNOWFLAKE_JWT \
                 --private-key-path /tmp/prod_key.p8 \
                 --role "PROD_${DOMAIN}_SYSADMIN" \
-                --warehouse ADMIN_WH || true
+                --warehouse GENERAL_REPORTING_WH || true
             done
           done
 
@@ -130,7 +134,7 @@ jobs:
                 --authenticator SNOWFLAKE_JWT \
                 --private-key-path /tmp/dev_key.p8 \
                 --role "DEV_${DOMAIN}_SYSADMIN" \
-                --warehouse ADMIN_WH || true
+                --warehouse GENERAL_REPORTING_WH || true
             done
           done
 
