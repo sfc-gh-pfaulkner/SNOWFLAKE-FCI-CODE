@@ -114,7 +114,7 @@ jobs:
                 --authenticator SNOWFLAKE_JWT \
                 --private-key-path /tmp/prod_key.p8 \
                 --role "PROD_${DOMAIN}_SYSADMIN" \
-                --warehouse ADMIN_WH || true
+                --warehouse COMPUTE_WH || true
             done
           done
 
@@ -134,7 +134,7 @@ jobs:
                 --authenticator SNOWFLAKE_JWT \
                 --private-key-path /tmp/dev_key.p8 \
                 --role "DEV_${DOMAIN}_SYSADMIN" \
-                --warehouse ADMIN_WH || true
+                --warehouse COMPUTE_WH || true
             done
           done
 
