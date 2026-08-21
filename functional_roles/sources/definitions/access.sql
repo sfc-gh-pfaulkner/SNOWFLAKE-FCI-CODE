@@ -114,6 +114,12 @@ GRANT DATABASE ROLE {{ env }}_GENERAL_CORE_DB.DB_R TO ROLE {{ env }}_{{ domain.n
 GRANT DATABASE ROLE {{ env }}_GENERAL_CORE_DB.DB_R TO ROLE {{ env }}_{{ domain.name }}_DEVELOPER;
 {% endif %}
 
+-- PII access roles: control who can see unmasked personal data
+DEFINE ROLE PII_{{ domain.name }}_FULL_ACCESS;
+DEFINE ROLE PII_{{ domain.name }}_PARTIAL_ACCESS;
+GRANT ROLE PII_{{ domain.name }}_FULL_ACCESS TO ROLE {{ env }}_{{ domain.name }}_DATASTEWARD;
+GRANT ROLE PII_{{ domain.name }}_PARTIAL_ACCESS TO ROLE {{ env }}_{{ domain.name }}_MANAGER;
+
 {% endif %}
 {% endfor %}
 
