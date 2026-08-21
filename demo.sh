@@ -298,9 +298,14 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 1 of 3: GENERAL${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Creating GitHub issue for GENERAL domain..."
+echo "  Next: Create a GitHub issue for the GENERAL domain."
+read -rp "  Press RETURN to create issue..."
+echo ""
 GENERAL_ISSUE=$(gh issue create --title "Deploy GENERAL domain code" --body "Reference data: dates, countries, currencies" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${GENERAL_ISSUE} created${RESET}"
+echo ""
+gh issue list
+echo ""
 read -rp "  Press RETURN to continue..."
 echo ""
 
@@ -317,9 +322,14 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 2 of 3: HR${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Creating GitHub issue for HR domain..."
+echo "  Next: Create a GitHub issue for the HR domain."
+read -rp "  Press RETURN to create issue..."
+echo ""
 HR_ISSUE=$(gh issue create --title "Deploy HR domain code" --body "Employees, departments, jobs, SCD2 history" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${HR_ISSUE} created${RESET}"
+echo ""
+gh issue list
+echo ""
 read -rp "  Press RETURN to continue..."
 echo ""
 
@@ -335,9 +345,14 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${CYAN}Domain 3 of 3: BRF${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  Creating GitHub issue for BRF domain..."
+echo "  Next: Create a GitHub issue for the BRF domain."
+read -rp "  Press RETURN to create issue..."
+echo ""
 BRF_ISSUE=$(gh issue create --title "Deploy BRF domain code" --body "Budgets, cost centers, GL accounts, variance analysis" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${BRF_ISSUE} created${RESET}"
+echo ""
+gh issue list
+echo ""
 read -rp "  Press RETURN to continue..."
 echo ""
 
