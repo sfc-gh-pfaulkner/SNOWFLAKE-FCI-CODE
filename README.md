@@ -117,9 +117,17 @@ snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q "call ADMIN_
 
 1. Add domain registration and database/schema/warehouse calls to `setup/provision_databases.sql`
 2. Re-run provisioning in both accounts
-3. Create `domains/<name>/dcm/manifest.yml` following the existing pattern
-4. Add the domain to `functional_roles/` grants
-5. Add the domain to the CI/CD workflow jobs in `.github/workflows/`
+3. Create `domains/<name>/dcm/manifest.yml` following the existing pattern (must include `defaults` section with `db` for `--variable` override)
+4. Add the domain to `functional_roles/manifest.yml` under `templating.defaults.domains` (include `reporting_wh` and `dev_wh`)
+5. Redeploy functional_roles to both accounts:
+   ```
+   snow dcm deploy --from functional_roles --target DEV -c DEVACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
+   snow dcm deploy --from functional_roles --target PROD -c PRODACC --role DEPLOYMENT_ADMIN --warehouse ADMIN_WH
+   ```
+6. Add the domain to the CI/CD workflow jobs in `.github/workflows/` (test.yml, uat.yml, preprod.yml, prod.yml)
+7. Grant roles to users — DCM cannot do `GRANT ROLE ... TO USER`. Either:
+   - Manually: `grant role <ENV>_<DOMAIN>_DEVELOPER to user <USERNAME>;`
+   - Via SCIM/IdP: map identity provider groups to Snowflake roles
 
 ---
 
