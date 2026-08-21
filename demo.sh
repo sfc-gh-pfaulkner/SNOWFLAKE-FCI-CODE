@@ -317,24 +317,9 @@ deploy_domain() {
   # --- CLEANUP ---
   section "${DOMAIN} Domain — Part 6: Cleanup"
 
-  step "Drop WIP clone" \
-    "Remove the developer WIP sandbox." \
-    "snow sql -c DEVACC --role ${DEV_SYSADMIN} --warehouse ${DEV_WH} -q \"CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', '${DOMAIN}', 'CORE', 'WIP');\""
-
-  step "Drop TEST clone" \
-    "Remove the TEST clone from DEV." \
-    "snow sql -c DEVACC --role ${DEV_SYSADMIN} --warehouse ${DEV_WH} -q \"CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', '${DOMAIN}', 'CORE', 'TEST');\""
-
-  step "Drop UAT clone" \
-    "Remove UAT from PROD." \
-    "snow sql -c PRODACC --role ${PROD_SYSADMIN} --warehouse ${PROD_WH} -q \"CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'PROD', '${DOMAIN}', 'CORE', 'UAT');\""
-
-  step "Drop PREPROD clone" \
-    "Remove PREPROD from PROD." \
-    "snow sql -c PRODACC --role ${PROD_SYSADMIN} --warehouse ${PROD_WH} -q \"CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'PROD', '${DOMAIN}', 'CORE', 'PREPROD');\""
-
   step "Delete feature branch" \
-    "Clean up the ${DOMAIN} feature branch." \
+    "Clean up the ${DOMAIN} feature branch.
+  (Clones were already dropped by the PROD workflow automatically.)" \
     "git checkout main && git pull && git branch -D ${BRANCH} && git push origin --delete ${BRANCH} 2>/dev/null || true"
 
   echo ""
