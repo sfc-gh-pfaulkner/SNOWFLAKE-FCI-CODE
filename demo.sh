@@ -127,9 +127,16 @@ deploy_domain() {
   into the active DCM folder for deployment." \
     "cp -r test/${DOMAIN_LOWER}_definitions/* domains/${DOMAIN_LOWER}/dcm/sources/definitions/ && rm -f domains/${DOMAIN_LOWER}/dcm/sources/definitions/.gitkeep"
 
-  step "Commit and push" \
-    "Commit the ${DOMAIN} domain code and push the feature branch." \
-    "git add -A && git commit -m 'feat(${DOMAIN_LOWER}): initial ${DOMAIN} domain code (#${ISSUE_ID})' && git push -u origin ${BRANCH}"
+  step "Commit (expect lint failure)" \
+    "The pre-commit hook runs sqlfluff-lint which enforces lowercase
+  keywords. The test definitions deliberately use UPPERCASE keywords
+  to demonstrate the governance guardrail. The commit will fail." \
+    "git add -A && git commit -m 'feat(${DOMAIN_LOWER}): initial ${DOMAIN} domain code (#${ISSUE_ID})' || true"
+
+  step "Fix lint errors and retry" \
+    "Run sqlfluff fix to auto-correct keyword capitalisation, then
+  commit again. This demonstrates the dev feedback loop." \
+    "sqlfluff fix domains/${DOMAIN_LOWER}/dcm/sources/definitions/ --force && git add -A && git commit -m 'feat(${DOMAIN_LOWER}): initial ${DOMAIN} domain code (#${ISSUE_ID})' && git push -u origin ${BRANCH}"
 
   step "Create WIP clone" \
     "Create a zero-copy clone of ${DEV_DB} for development.
