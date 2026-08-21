@@ -125,6 +125,22 @@ BRANCH="feature/${ISSUE_ID}-hr-pii-tags"
 WIP_DB="WIP_${ISSUE_ID}_HR_CORE_DB"
 
 # =============================================================================
+section "Part 0: Seed PROD HR data (so we can show before/after)"
+# =============================================================================
+
+step "Load test data into PROD HR" \
+  "Insert employee and compensation data into the PROD HR database.
+  This gives us data to query before and after PII tags are applied." \
+  "snow sql -f test/seed_hr.sql -c PRODACC --role PROD_HR_SYSADMIN --warehouse HR_REPORTING_WH -D \"db=PROD_HR_CORE_DB\" --enable-templating JINJA"
+
+step "Query BEFORE tagging (unmasked)" \
+  "With no PII tags applied yet, all roles see all data in clear text.
+  This is the 'before' state we want to contrast with." \
+  "snow sql -c PRODACC --role PROD_HR_ANALYST --warehouse HR_REPORTING_WH -q \"select EMPLOYEE_ID, FIRST_NAME, LAST_NAME, EMAIL, DATE_OF_BIRTH, GENDER from PROD_HR_CORE_DB.RAW.EMPLOYEES_RAW limit 5;\""
+
+pause_gate "Data visible to all roles. Now let's apply PII governance..."
+
+# =============================================================================
 section "Part 1: Apply PII Tags"
 # =============================================================================
 
