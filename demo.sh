@@ -71,7 +71,7 @@ if [[ $resume_from -gt 0 ]]; then
   if [[ -n "${BRF_ISSUE:-}" ]]; then echo "    BRF issue: #${BRF_ISSUE}"; fi
   echo ""
   read -rp "  Resume from step $((resume_from + 1))? [Y/n] " choice
-  if [[ "${choice,,}" == "n" ]]; then
+  if [[ "$choice" == "n" || "$choice" == "N" ]]; then
     clear_state
     resume_from=0
     GENERAL_ISSUE=""
