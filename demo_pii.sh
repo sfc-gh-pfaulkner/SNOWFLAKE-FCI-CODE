@@ -93,11 +93,11 @@ step "Create feature branch" \
   "Branch off main for the PII tagging work." \
   "git checkout main && git pull && git checkout -b ${BRANCH}"
 
-step "Copy PII tag definitions" \
-  "Add the PII tagging SQL to the HR domain DCM folder.
-  This file contains ALTER TABLE SET TAG statements that classify
-  columns containing personal data." \
-  "cp test/hr_update_01/pii_tags.sql domains/hr/dcm/sources/definitions/"
+step "Copy HR definitions + PII tags" \
+  "Copy the full HR domain code and the PII tagging script.
+  The PII script goes into post_deploy/ — the CI/CD workflow
+  automatically runs all scripts in that folder after DCM deploys." \
+  "mkdir -p domains/hr/dcm/sources/definitions && cp -r test/hr_definitions/* domains/hr/dcm/sources/definitions/ && rm -f domains/hr/dcm/sources/definitions/.gitkeep && mkdir -p domains/hr/post_deploy && cp test/hr_update_01/pii_tags.sql domains/hr/post_deploy/"
 
 step "Commit and push" \
   "Commit the PII tagging update." \
@@ -107,11 +107,14 @@ step "Create WIP clone" \
   "Clone DEV_HR_CORE_DB to test the PII tags." \
   "snow sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -q \"CALL ADMIN_DB.DEPLOY.DEPLOY_CLONE('${ISSUE_ID}', 'DEV', 'HR', 'CORE', 'WIP');\""
 
-step "Deploy DCM (applies tags)" \
-  "DCM deploys all definitions including the new pii_tags.sql.
-  The ALTER TABLE SET TAG statements tag each PII column with
-  its category and classification level." \
+step "Deploy DCM (creates tables/views)" \
+  "DCM deploys the HR domain objects to the WIP clone." \
   "snow dcm deploy ${WIP_DB}.DCM.HR_CORE_PROJECT --from domains/hr/dcm --target DEV --variable \"db='${WIP_DB}'\" -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH"
+
+step "Apply PII tags (post-deploy)" \
+  "Run the PII tagging script from post_deploy/. In CI/CD this runs
+  automatically. Here we run it manually to show what happens." \
+  "snow sql -f domains/hr/post_deploy/pii_tags.sql -c DEVACC --role DEV_HR_DEVELOPER --warehouse HR_DEV_WH -D \"db=${WIP_DB}\" --enable-templating JINJA"
 
 step "Load test data" \
   "Insert employee data so we can see the masking in action." \
