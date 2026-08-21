@@ -1,0 +1,4 @@
+-- Schema-level grants managed by DCM.
+-- Object ownership stays with the deploying role.
+-- Read access is provided automatically via future grants set up by DEPLOY_SCHEMA.
+-- No explicit ownership transfers needed — DCM manages the objects.
