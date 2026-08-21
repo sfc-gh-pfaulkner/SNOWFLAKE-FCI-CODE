@@ -205,7 +205,7 @@ deploy_domain() {
   step "Copy ${DOMAIN} definitions" \
     "Copy ${DOMAIN} definitions from test/${DOMAIN_LOWER}_definitions/
   into the active DCM folder for deployment." \
-    "cp -r test/${DOMAIN_LOWER}_definitions/* domains/${DOMAIN_LOWER}/dcm/sources/definitions/ && rm -f domains/${DOMAIN_LOWER}/dcm/sources/definitions/.gitkeep"
+    "mkdir -p domains/${DOMAIN_LOWER}/dcm/sources/definitions && cp -r test/${DOMAIN_LOWER}_definitions/* domains/${DOMAIN_LOWER}/dcm/sources/definitions/ && rm -f domains/${DOMAIN_LOWER}/dcm/sources/definitions/.gitkeep"
 
   step "Commit and push" \
     "Commit the ${DOMAIN} domain code and push the feature branch." \
