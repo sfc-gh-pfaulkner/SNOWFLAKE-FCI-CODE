@@ -301,6 +301,7 @@ echo ""
 echo "  Creating GitHub issue for GENERAL domain..."
 GENERAL_ISSUE=$(gh issue create --title "Deploy GENERAL domain code" --body "Reference data: dates, countries, currencies" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${GENERAL_ISSUE} created${RESET}"
+read -rp "  Press RETURN to continue..."
 echo ""
 
 # Dynamic table refresh commands (use __DB__ as placeholder)
@@ -319,6 +320,7 @@ echo ""
 echo "  Creating GitHub issue for HR domain..."
 HR_ISSUE=$(gh issue create --title "Deploy HR domain code" --body "Employees, departments, jobs, SCD2 history" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${HR_ISSUE} created${RESET}"
+read -rp "  Press RETURN to continue..."
 echo ""
 
 HR_DT="ALTER DYNAMIC TABLE __DB__.DM.D_EMPLOYEE_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_DEPARTMENT_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.D_JOB_CURRENT REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_JOB_HISTORY REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_EMPLOYEE_COMP_HISTORY REFRESH;"
@@ -336,6 +338,7 @@ echo ""
 echo "  Creating GitHub issue for BRF domain..."
 BRF_ISSUE=$(gh issue create --title "Deploy BRF domain code" --body "Budgets, cost centers, GL accounts, variance analysis" --assignee @me 2>&1 | grep -oE '[0-9]+$')
 echo -e "  ${GREEN}Issue #${BRF_ISSUE} created${RESET}"
+read -rp "  Press RETURN to continue..."
 echo ""
 
 BRF_DT="ALTER DYNAMIC TABLE __DB__.DM.D_COST_CENTER REFRESH; ALTER DYNAMIC TABLE __DB__.DM.F_BUDGET_VARIANCE REFRESH;"
