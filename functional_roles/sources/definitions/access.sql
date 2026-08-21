@@ -43,6 +43,14 @@ GRANT DATABASE ROLE {{ env }}_{{ domain.name }}_CORE_DB.STG_R TO ROLE {{ env }}_
 -- DATASTEWARD: All schemas (full read via DB_R)
 GRANT DATABASE ROLE {{ env }}_{{ domain.name }}_CORE_DB.DB_R TO ROLE {{ env }}_{{ domain.name }}_DATASTEWARD;
 
+-- Clone management: SYSADMIN can create/drop clones (CI/CD uses this in both envs)
+GRANT USAGE ON DATABASE ADMIN_DB TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+GRANT USAGE ON SCHEMA ADMIN_DB.DEPLOY TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+GRANT USAGE ON PROCEDURE ADMIN_DB.DEPLOY.DEPLOY_CLONE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+GRANT USAGE ON PROCEDURE ADMIN_DB.DEPLOY._PROVISION_CLONE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+GRANT USAGE ON PROCEDURE ADMIN_DB.DEPLOY.DROP_CLONE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+GRANT USAGE ON PROCEDURE ADMIN_DB.DEPLOY._DROP_CLONE(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE {{ env }}_{{ domain.name }}_SYSADMIN;
+
 -- DEVELOPER: All schemas read-only (write access added dynamically to clones)
 {% if env in ['DEV'] %}
 GRANT DATABASE ROLE {{ env }}_{{ domain.name }}_CORE_DB.DB_R TO ROLE {{ env }}_{{ domain.name }}_DEVELOPER;
