@@ -127,8 +127,11 @@ begin
         grant usage on warehouse HR_DEV_WH to role DEPLOYMENT_ADMIN;
         grant usage on warehouse BRF_DEV_WH to role DEPLOYMENT_ADMIN;
         grant usage on warehouse GENERAL_DEV_WH to role DEV_GENERAL_DEVELOPER;
+        grant operate on warehouse GENERAL_DEV_WH to role DEV_GENERAL_DEVELOPER;
         grant usage on warehouse HR_DEV_WH to role DEV_HR_DEVELOPER;
+        grant operate on warehouse HR_DEV_WH to role DEV_HR_DEVELOPER;
         grant usage on warehouse BRF_DEV_WH to role DEV_BRF_DEVELOPER;
+        grant operate on warehouse BRF_DEV_WH to role DEV_BRF_DEVELOPER;
     end if;
 end;
 $$;
