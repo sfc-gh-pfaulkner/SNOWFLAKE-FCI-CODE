@@ -81,6 +81,8 @@ jobs:
     if: always() && needs.detect-changes.result == 'success'
     runs-on: self-hosted
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install SnowCLI
         run: pip install snowflake-cli-labs
 
@@ -101,11 +103,8 @@ jobs:
       - name: Drop clones (PROD account)
         run: |
           ISSUE_ID="${{ steps.extract.outputs.issue_id }}"
-          DOMAINS=()
-          [[ "${{ needs.detect-changes.outputs.general }}" == "true" ]] && DOMAINS+=("GENERAL")
-          [[ "${{ needs.detect-changes.outputs.hr }}" == "true" ]] && DOMAINS+=("HR")
-          [[ "${{ needs.detect-changes.outputs.brf }}" == "true" ]] && DOMAINS+=("BRF")
-          for DOMAIN in "${DOMAINS[@]}"; do
+          for DOMAIN_DIR in domains/*/; do
+            DOMAIN=$(basename "$DOMAIN_DIR" | tr '[:lower:]' '[:upper:]')
             for CLONE_TYPE in PREPROD UAT; do
               snow sql -q "CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'PROD', '${DOMAIN}', 'CORE', '${CLONE_TYPE}');" \
                 --temporary-connection \
@@ -121,11 +120,8 @@ jobs:
       - name: Drop clones (DEV account)
         run: |
           ISSUE_ID="${{ steps.extract.outputs.issue_id }}"
-          DOMAINS=()
-          [[ "${{ needs.detect-changes.outputs.general }}" == "true" ]] && DOMAINS+=("GENERAL")
-          [[ "${{ needs.detect-changes.outputs.hr }}" == "true" ]] && DOMAINS+=("HR")
-          [[ "${{ needs.detect-changes.outputs.brf }}" == "true" ]] && DOMAINS+=("BRF")
-          for DOMAIN in "${DOMAINS[@]}"; do
+          for DOMAIN_DIR in domains/*/; do
+            DOMAIN=$(basename "$DOMAIN_DIR" | tr '[:lower:]' '[:upper:]')
             for CLONE_TYPE in TEST WIP SAFE; do
               snow sql -q "CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', '${DOMAIN}', 'CORE', '${CLONE_TYPE}');" \
                 --temporary-connection \
