@@ -6,6 +6,10 @@ on:
       - 'prod/**'
     types: [closed]
 
+permissions:
+  issues: write
+  contents: read
+
 jobs:
   detect-changes:
     if: github.event.pull_request.merged == true
