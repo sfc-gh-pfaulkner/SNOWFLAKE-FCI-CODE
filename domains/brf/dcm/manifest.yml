@@ -18,15 +18,14 @@ targets:
     templating_config: PROD
 
 templating:
+  defaults:
+    db: DEV_BRF_CORE_DB
+    ingest_wh: GENERAL_INGEST_WH
+    transform_wh: GENERAL_TRANSFORM_WH
+    reporting_wh: BRF_REPORTING_WH
+    dev_wh: BRF_DEV_WH
   configurations:
     DEV:
       db: DEV_BRF_CORE_DB
-      ingest_wh: GENERAL_INGEST_WH
-      transform_wh: GENERAL_TRANSFORM_WH
-      reporting_wh: BRF_REPORTING_WH
-      dev_wh: BRF_DEV_WH
     PROD:
       db: PROD_BRF_CORE_DB
-      ingest_wh: GENERAL_INGEST_WH
-      transform_wh: GENERAL_TRANSFORM_WH
-      reporting_wh: BRF_REPORTING_WH

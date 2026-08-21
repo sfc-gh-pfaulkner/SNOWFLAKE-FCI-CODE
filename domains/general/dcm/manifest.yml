@@ -18,14 +18,13 @@ targets:
     templating_config: PROD
 
 templating:
+  defaults:
+    db: DEV_GENERAL_CORE_DB
+    ingest_wh: GENERAL_INGEST_WH
+    transform_wh: GENERAL_TRANSFORM_WH
+    reporting_wh: GENERAL_REPORTING_WH
   configurations:
     DEV:
       db: DEV_GENERAL_CORE_DB
-      ingest_wh: GENERAL_INGEST_WH
-      transform_wh: GENERAL_TRANSFORM_WH
-      reporting_wh: GENERAL_REPORTING_WH
     PROD:
       db: PROD_GENERAL_CORE_DB
-      ingest_wh: GENERAL_INGEST_WH
-      transform_wh: GENERAL_TRANSFORM_WH
-      reporting_wh: GENERAL_REPORTING_WH
