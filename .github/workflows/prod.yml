@@ -122,7 +122,7 @@ jobs:
           [[ "${{ needs.detect-changes.outputs.hr }}" == "true" ]] && DOMAINS+=("HR")
           [[ "${{ needs.detect-changes.outputs.brf }}" == "true" ]] && DOMAINS+=("BRF")
           for DOMAIN in "${DOMAINS[@]}"; do
-            for CLONE_TYPE in TEST WIP; do
+            for CLONE_TYPE in TEST WIP SAFE; do
               snow sql -q "CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', '${DOMAIN}', 'CORE', '${CLONE_TYPE}');" \
                 --temporary-connection \
                 --account "${{ secrets.DEV_ACCOUNT }}" \
