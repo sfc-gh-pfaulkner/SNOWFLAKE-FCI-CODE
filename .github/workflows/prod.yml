@@ -71,3 +71,75 @@ jobs:
       SNOWFLAKE_ACCOUNT: ${{ secrets.PROD_ACCOUNT }}
       SNOWFLAKE_USER: ${{ secrets.PROD_USER }}
       SNOWFLAKE_PRIVATE_KEY: ${{ secrets.PROD_PRIVATE_KEY }}
+
+  cleanup:
+    needs: [detect-changes, deploy-hr, deploy-brf, deploy-general]
+    if: always() && needs.detect-changes.result == 'success'
+    runs-on: self-hosted
+    steps:
+      - name: Install SnowCLI
+        run: pip install snowflake-cli-labs
+
+      - name: Extract issue ID from PR title
+        id: extract
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          ISSUE_ID=$(echo "$PR_TITLE" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+          if [[ -z "$ISSUE_ID" ]]; then ISSUE_ID="0"; fi
+          echo "issue_id=$ISSUE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Write private keys
+        run: |
+          echo "${{ secrets.DEV_PRIVATE_KEY }}" > /tmp/dev_key.p8
+          echo "${{ secrets.PROD_PRIVATE_KEY }}" > /tmp/prod_key.p8
+          chmod 600 /tmp/dev_key.p8 /tmp/prod_key.p8
+
+      - name: Drop clones (PROD account)
+        run: |
+          ISSUE_ID="${{ steps.extract.outputs.issue_id }}"
+          DOMAINS=()
+          [[ "${{ needs.detect-changes.outputs.general }}" == "true" ]] && DOMAINS+=("GENERAL")
+          [[ "${{ needs.detect-changes.outputs.hr }}" == "true" ]] && DOMAINS+=("HR")
+          [[ "${{ needs.detect-changes.outputs.brf }}" == "true" ]] && DOMAINS+=("BRF")
+          for DOMAIN in "${DOMAINS[@]}"; do
+            for CLONE_TYPE in PREPROD UAT; do
+              snow sql -q "CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'PROD', '${DOMAIN}', 'CORE', '${CLONE_TYPE}');" \
+                --temporary-connection \
+                --account "${{ secrets.PROD_ACCOUNT }}" \
+                --user "${{ secrets.PROD_USER }}" \
+                --authenticator SNOWFLAKE_JWT \
+                --private-key-path /tmp/prod_key.p8 \
+                --role "PROD_${DOMAIN}_SYSADMIN" \
+                --warehouse ADMIN_WH || true
+            done
+          done
+
+      - name: Drop clones (DEV account)
+        run: |
+          ISSUE_ID="${{ steps.extract.outputs.issue_id }}"
+          DOMAINS=()
+          [[ "${{ needs.detect-changes.outputs.general }}" == "true" ]] && DOMAINS+=("GENERAL")
+          [[ "${{ needs.detect-changes.outputs.hr }}" == "true" ]] && DOMAINS+=("HR")
+          [[ "${{ needs.detect-changes.outputs.brf }}" == "true" ]] && DOMAINS+=("BRF")
+          for DOMAIN in "${DOMAINS[@]}"; do
+            for CLONE_TYPE in TEST WIP SAFE; do
+              snow sql -q "CALL ADMIN_DB.DEPLOY.DROP_CLONE('${ISSUE_ID}', 'DEV', '${DOMAIN}', 'CORE', '${CLONE_TYPE}');" \
+                --temporary-connection \
+                --account "${{ secrets.DEV_ACCOUNT }}" \
+                --user "${{ secrets.DEV_USER }}" \
+                --authenticator SNOWFLAKE_JWT \
+                --private-key-path /tmp/dev_key.p8 \
+                --role "DEV_${DOMAIN}_SYSADMIN" \
+                --warehouse ADMIN_WH || true
+            done
+          done
+
+      - name: Close GitHub issue
+        if: steps.extract.outputs.issue_id != '0'
+        run: gh issue close ${{ steps.extract.outputs.issue_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Clean up keys
+        if: always()
+        run: rm -f /tmp/dev_key.p8 /tmp/prod_key.p8
